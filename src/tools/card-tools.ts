@@ -85,19 +85,42 @@ export function addCardTools(server: any, metabaseClient: MetabaseClient) {
     parameters: z.object({
       name: z.string().describe("Card name"),
       description: z.string().optional().describe("Description"),
-      dataset_query: z.unknown().optional().describe("Dataset query object - fully preserved including nested MBQL arrays"),
+      dataset_query: z.record(z.unknown()).optional().describe(`Dataset query object - fully preserved including nested MBQL arrays.
+
+Field filter (dimension template-tag) notes for native queries:
+- When the mapped table is referenced via an alias (e.g. LEFT JOIN dim_site s), you MUST set the "alias" property on the template-tag, otherwise Metabase generates schema.table.column which fails. The alias value corresponds to Metabase's "Table and field alias" UI setting.
+  Example: { "brand": { "id": "brand_tag", "name": "brand", "display-name": "Brand", "type": "dimension", "dimension": ["field", 6693, null], "widget-type": "string/=", "alias": "s.brand" } }
+- In the SQL, use AND {{tag}} — NOT AND col = {{tag}}. Field filters expand to the full expression (e.g. s.brand = 'Foo' or s.brand IN ('Foo', 'Bar')). Writing s.brand = {{tag}} produces invalid SQL: s.brand = s.brand = 'value'.`),
       display: z.string().optional().describe("Visualization type"),
       visualization_settings: z
-        .object({})
-        .passthrough()
+        .record(z.unknown())
         .optional()
         .describe("Visualization settings"),
       collection_id: z.number().optional().describe("Collection to save in"),
       database_id: z.number().optional().describe("Database ID"),
+      parameters: z.array(z.object({
+        id: z.string().describe("Must match the template-tag id"),
+        type: z.enum([
+          "number", "text", "date", "boolean", "id", "category",
+          "date/single", "date/range", "date/month-year", "date/quarter-year",
+          "date/relative", "date/all-options",
+          "number/=", "number/!=", "number/<=", "number/>=", "number/between",
+          "string/=", "string/!=", "string/contains", "string/does-not-contain",
+          "string/starts-with", "string/ends-with",
+          "boolean/=",
+          "location/city", "location/state", "location/zip_code", "location/country",
+          "temporal-unit",
+        ]).describe("Filter widget type"),
+        target: z.array(z.unknown()).describe('e.g. ["dimension", ["template-tag", "brand"]] or ["variable", ["template-tag", "count"]]'),
+        name: z.string(),
+        slug: z.string(),
+        default: z.string().optional(),
+      }).passthrough()).optional().describe("Top-level card parameters array. Required for field filters (dimension template tags) to render as proper filter widgets in the UI."),
     }).strict(),
     execute: async (args: any) => {
       try {
-        const card = await metabaseClient.createCard(args);
+        const { database_id, ...cardPayload } = args;
+        const card = await metabaseClient.createCard(cardPayload);
         return JSON.stringify(card, null, 2);
       } catch (error) {
         throw new Error(
@@ -125,10 +148,11 @@ export function addCardTools(server: any, metabaseClient: MetabaseClient) {
     metadata: { isWrite: true },
     parameters: z.object({
       card_id: z.number().describe("Card ID"),
-      updates: z.object({}).passthrough().describe("Fields to update"),
+      updates: z.record(z.unknown()).describe(`Fields to update (supports name, description, dataset_query, display, visualization_settings, parameters, collection_id, archived).
+
+When updating dataset_query with field filters (dimension template-tags) in native queries that use table aliases: set the "alias" property on each affected template-tag (e.g. "alias": "s.brand" for LEFT JOIN dim_site s). Without it, Metabase generates schema.table.column which fails. In SQL use AND {{tag}}, not AND col = {{tag}} — field filters expand to the full expression.`),
       query_params: z
-        .object({})
-        .passthrough()
+        .record(z.unknown())
         .optional()
         .describe("Optional query parameters for update"),
     }).strict(),
