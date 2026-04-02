@@ -64,6 +64,19 @@ export class MetabaseClient {
       }
     );
 
+    // Add response interceptor to enrich error messages with API response body
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response) {
+          const status = error.response.status;
+          const body = error.response.data;
+          error.message = `HTTP ${status} — ${JSON.stringify(body)}`;
+        }
+        return Promise.reject(error);
+      }
+    );
+
   }
 
   private logInfo(message: string, data?: unknown) {

@@ -46,6 +46,26 @@ export interface DashboardCard {
   visualization_settings?: Record<string, unknown>;
 }
 
+export type CardParameterType =
+  | "number" | "text" | "date" | "boolean" | "id" | "category"
+  | "date/single" | "date/range" | "date/month-year" | "date/quarter-year"
+  | "date/relative" | "date/all-options"
+  | "number/=" | "number/!=" | "number/<=" | "number/>=" | "number/between"
+  | "string/=" | "string/!=" | "string/contains" | "string/does-not-contain"
+  | "string/starts-with" | "string/ends-with"
+  | "boolean/="
+  | "location/city" | "location/state" | "location/zip_code" | "location/country"
+  | "temporal-unit";
+
+export interface CardParameter {
+  id: string;
+  type: CardParameterType;
+  target: unknown[];
+  name: string;
+  slug: string;
+  default?: string;
+}
+
 export interface Card {
   id: number;
   name: string;
@@ -55,6 +75,7 @@ export interface Card {
   dataset_query: any;
   display: string;
   visualization_settings: any;
+  parameters?: CardParameter[];
 }
 
 export interface Database {
