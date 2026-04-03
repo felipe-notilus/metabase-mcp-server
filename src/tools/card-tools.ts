@@ -100,6 +100,7 @@ Skeleton:
 
 Joins — every field from a joined table must carry "join-alias" matching the join's alias property:
 { "lib/type": "mbql/join", "lib/options": { "lib/uuid": "<uuid>" }, "stages": [{ "lib/type": "mbql.stage/mbql", "lib/options": { "lib/uuid": "<uuid>" }, "source-table": <table_id> }], "fields": "all", "conditions": [["=", { "lib/uuid": "<uuid>" }, ["field", { "base-type": "type/Text", "effective-type": "type/Text", "lib/uuid": "<uuid>" }, <left_field_id>], ["field", { "base-type": "type/Text", "effective-type": "type/Text", "join-alias": "<alias>", "lib/uuid": "<uuid>" }, <right_field_id>]]], "strategy": "left-join", "alias": "<alias>" }
+- "fields" accepts "all", "none", or a specific field array. When using an array, every field ref must have a proper UUID v4 string in lib/uuid — short strings like "my-label" silently break query compilation. The Metabase notebook UI renders "fields": "all" by showing only fields actually used in breakouts/aggregations, so the UI appearance doesn't reflect the actual MBQL value.
 
 Breakouts (GROUP BY): ["field", { "base-type": "...", "effective-type": "...", "join-alias": "<alias>", "lib/uuid": "<uuid>" }, <field_id>] — omit join-alias for source-table fields.
 
@@ -136,7 +137,7 @@ Common pitfalls:
 - Filter not connecting → wrong target type (needs ["field",...] not ["template-tag",...])
 - Query error on joined field → missing join-alias on field reference
 - Aggregation missing from pivot values → missing "name" in aggregation options
-- Rows not collapsible → pivot_table.collapsed_rows not set or rows array doesn't match column_split.rows`),
+- Rows not collapsible → pivot_table.collapsed_rows must be set on the card (question-level), not the dashcard — dashcard-level visualization_settings silently ignores this setting`),
       display: z.string().optional().describe("Visualization type"),
       visualization_settings: z
         .record(z.unknown())
