@@ -90,7 +90,53 @@ export function addCardTools(server: any, metabaseClient: MetabaseClient) {
 Field filter (dimension template-tag) notes for native queries:
 - When the mapped table is referenced via an alias (e.g. LEFT JOIN dim_site s), you MUST set the "alias" property on the template-tag, otherwise Metabase generates schema.table.column which fails. The alias value corresponds to Metabase's "Table and field alias" UI setting.
   Example: { "brand": { "id": "brand_tag", "name": "brand", "display-name": "Brand", "type": "dimension", "dimension": ["field", 6693, null], "widget-type": "string/=", "alias": "s.brand" } }
-- In the SQL, use AND {{tag}} — NOT AND col = {{tag}}. Field filters expand to the full expression (e.g. s.brand = 'Foo' or s.brand IN ('Foo', 'Bar')). Writing s.brand = {{tag}} produces invalid SQL: s.brand = s.brand = 'value'.`),
+- In the SQL, use AND {{tag}} — NOT AND col = {{tag}}. Field filters expand to the full expression (e.g. s.brand = 'Foo' or s.brand IN ('Foo', 'Bar')). Writing s.brand = {{tag}} produces invalid SQL: s.brand = s.brand = 'value'.
+
+MBQL pivot cards (display: "pivot"):
+Pivot visualization requires MBQL — native SQL cards fall back to a plain table. Use lib/type "mbql/query" with a single stage of type "mbql.stage/mbql".
+
+Skeleton:
+{ "lib/type": "mbql/query", "database": <db_id>, "stages": [{ "lib/type": "mbql.stage/mbql", "source-table": <table_id>, "joins": [...], "breakout": [...], "aggregation": [...] }] }
+
+Joins — every field from a joined table must carry "join-alias" matching the join's alias property:
+{ "lib/type": "mbql/join", "lib/options": { "lib/uuid": "<uuid>" }, "stages": [{ "lib/type": "mbql.stage/mbql", "lib/options": { "lib/uuid": "<uuid>" }, "source-table": <table_id> }], "fields": "all", "conditions": [["=", { "lib/uuid": "<uuid>" }, ["field", { "base-type": "type/Text", "effective-type": "type/Text", "lib/uuid": "<uuid>" }, <left_field_id>], ["field", { "base-type": "type/Text", "effective-type": "type/Text", "join-alias": "<alias>", "lib/uuid": "<uuid>" }, <right_field_id>]]], "strategy": "left-join", "alias": "<alias>" }
+
+Breakouts (GROUP BY): ["field", { "base-type": "...", "effective-type": "...", "join-alias": "<alias>", "lib/uuid": "<uuid>" }, <field_id>] — omit join-alias for source-table fields.
+
+Aggregations:
+- Standard: ["count", { "lib/uuid": "<uuid>" }], ["sum", { "lib/uuid": "<uuid>" }, <field_ref>], ["distinct" / "min" / "max" / "avg", ...]
+- Conditional: ["sum-where", { "lib/uuid": "<uuid>" }, <field_ref>, <filter_clause>], ["count-where", { "lib/uuid": "<uuid>" }, <filter_clause>]
+- Filter clauses: ["not-null" / "is-null", { "lib/uuid": "<uuid>" }, <field_ref>] or ["=", { "lib/uuid": "<uuid>" }, <field_ref>, ["value", <val>, { "base-type": "..." }]]
+- Custom arithmetic (add "name" so the pivot config can reference it): ["/", { "name": "pct_revenue", "display-name": "% Revenue", "lib/uuid": "<uuid>" }, <numerator_agg>, <denominator_agg>]
+  The name value becomes the column's lib/deduplicated-name used in visualization_settings.
+
+Pivot visualization_settings:
+{
+  "pivot_table.column_split": {
+    "rows":    [["name", "<breakout_col>"], ...],
+    "columns": [["name", "<breakout_col>"]],
+    "values":  [["name", "<agg_name>"], ...]
+  },
+  "pivot_table.collapsed_rows": { "value": [], "rows": ["<breakout_col>", ...] },
+  "column_settings": {
+    "[\"name\",\"pct_revenue\"]": { "column_title": "% Revenue", "number_style": "percent", "decimals": 1 },
+    "[\"name\",\"sum\"]": { "column_title": "Total (€)", "number_style": "currency", "currency": "EUR", "currency_style": "symbol" }
+  },
+  "table.column_formatting": [{ "columns": ["pct_revenue"], "type": "range", "colors": ["#EF8C8C","#FCFF97","#74D97A"], "min_type": "custom", "min_value": 0, "max_type": "custom", "max_value": 1 }]
+}
+- column_split uses ["name", "<lib/deduplicated-name>"] tuples; collapsed_rows.rows uses plain strings matching those values.
+- For ratio columns (0–1), use number_style "percent" — Metabase multiplies by 100 for display.
+
+Dashboard filter targets for MBQL cards: use ["dimension", ["field", <id>, <opts>]] — NOT ["template-tag", ...].
+- Source-table field: ["dimension", ["field", <id>, null]]
+- Joined field: ["dimension", ["field", <id>, { "join-alias": "<alias>" }]]
+
+Common pitfalls:
+- Pivot shows plain table → card is native SQL, rewrite as MBQL
+- Filter not connecting → wrong target type (needs ["field",...] not ["template-tag",...])
+- Query error on joined field → missing join-alias on field reference
+- Aggregation missing from pivot values → missing "name" in aggregation options
+- Rows not collapsible → pivot_table.collapsed_rows not set or rows array doesn't match column_split.rows`),
       display: z.string().optional().describe("Visualization type"),
       visualization_settings: z
         .record(z.unknown())
